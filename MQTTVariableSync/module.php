@@ -48,7 +48,7 @@ class MQTTVariableSync extends IPSModule
         $this->RegisterPropertyInteger('MirrorRoot', 0);
         $this->RegisterPropertyString('SyncTargets', '[]');
 
-        // Use a short-lived timer that kicks off the initial synchronisation right
+         // Use a short-lived timer that kicks off the initial synchronisation right
         // after ApplyChanges() finished wiring up the module. The timer is disabled
         // immediately after the first run.
         $this->RegisterTimer('InitialSync', 0, 'MQTTSync_InitialSync($_IPS["TARGET"]);');
