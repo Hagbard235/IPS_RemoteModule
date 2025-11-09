@@ -10,5 +10,5 @@
     "childRequirements": [],
     "implemented": [],
     "prefix": "MQTTSYNC",
-    "url": ""
+    "url": "https://github.com/Hagbard235/IPS_RemoteModule/tree/main/MQTTVariableSync"
 }
