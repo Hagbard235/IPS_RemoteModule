@@ -2,11 +2,20 @@
     "id": "{EED6BB49-67E1-4FAD-8E58-0F5F1CFDE6A3}",
     "name": "MQTT Variable Synchronization",
     "author": "OpenAI Assistant",
-    "url": "",
+    "url": "https://github.com/ips-agent/IPS_RemoteModule",
+    "version": "1.0",
+    "build": 1,
+    "date": "2024-06-04",
     "compatibility": {
         "version": "6.0"
     },
-    "version": "1.0",
-    "build": 1,
-    "date": "2024-06-04"
+    "modules": [
+        {
+            "id": "{C0A5F5B2-57AB-4B11-8C45-6F121BCF92C0}",
+            "name": "MQTTVariableSync",
+            "type": 3,
+            "prefix": "MQTTSync",
+            "url": "MQTTVariableSync"
+        }
+    ]
 }
