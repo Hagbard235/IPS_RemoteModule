@@ -2,6 +2,15 @@
 
 declare(strict_types=1);
 
+// IP-Symcon defines a set of instance status constants within the runtime.
+// When linting or executing the module in a plain PHP environment (e.g. CI)
+// these constants might be missing, which would otherwise cause fatal errors
+// once accessed. Provide sensible fallbacks so that development tooling can
+// execute the file without requiring the full IP-Symcon context.
+if (!defined('IS_INVALIDCONFIG')) {
+    define('IS_INVALIDCONFIG', 201);
+}
+
 /**
  * MQTTVariableSync Module.
  *
