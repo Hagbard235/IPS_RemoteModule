@@ -2,7 +2,7 @@
     "id": "{C0A5F5B2-57AB-4B11-8C45-6F121BCF92C0}",
     "name": "MQTTVariableSync",
     "type": 3,
-    "vendor": "",
+    "vendor": "AS",
     "aliases": [
         "MQTT Variablen Synchronisation"
     ],
@@ -10,5 +10,5 @@
     "childRequirements": [],
     "implemented": [],
     "prefix": "MQTTSYNC",
-    "url": "https://github.com/Hagbard235/IPS_RemoteModule"
+    "url": ""
 }
