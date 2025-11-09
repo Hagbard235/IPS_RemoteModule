@@ -48,8 +48,13 @@ class MQTTVariableSync extends IPSModule
         $this->RegisterPropertyInteger('MirrorRoot', 0);
         $this->RegisterPropertyString('SyncTargets', '[]');
 
+         // Use a short-lived timer that kicks off the initial synchronisation right
+        // after ApplyChanges() finished wiring up the module. The timer is disabled
+        // immediately after the first run.
         $this->RegisterTimer('InitialSync', 0, 'MQTTSync_InitialSync($_IPS["TARGET"]);');
 
+        // Persist all runtime caches as attributes so module reboots do not lose
+        // state such as identifier mappings or pending confirmation tokens.
         $this->RegisterAttributeString(self::BUFFER_IDENTIFIER_MAP, json_encode([]));
         $this->RegisterAttributeString(self::BUFFER_PROFILE_CACHE, json_encode([]));
         $this->RegisterAttributeString(self::BUFFER_PENDING_ACTIONS, json_encode([]));
@@ -62,16 +67,29 @@ class MQTTVariableSync extends IPSModule
     {
         parent::ApplyChanges();
 
+        // Always reset all subscriptions and references first so we do not retain
+        // dangling listeners for previously selected categories when the
+        // configuration changes.
         $this->UnregisterMessages();
         $this->UnregisterReferences();
 
+        // Depending on the chosen mode the module needs to connect to the
+        // matching MQTT parent instance. The helper takes care of compatibility
+        // checks and visual error reporting inside the instance list.
         $this->RegisterParentConnection();
         $this->ConfigureParentInstance();
 
+        // Only accept MQTT messages for the configured receive topic to prevent
+        // cross talk between multiple synchronisation pairs.
         $this->MaintainReceiveDataFilter();
 
+        // Observe every selected variable for change notifications so we can
+        // emit updates without polling.
         $this->UpdateSynchronizationReferences();
 
+        // The timer is used as a delayed trigger so ApplyChanges() can finish
+        // without blocking the PHP thread. The actual synchronisation happens in
+        // InitialSync().
         $this->SetTimerInterval('InitialSync', 5000);
     }
 
@@ -101,6 +119,8 @@ class MQTTVariableSync extends IPSModule
      */
     public function ReceiveData(string $JSONString): void
     {
+        // MQTTClient delivers the payload wrapped in a JSON envelope. Decode it
+        // and validate the structure before inspecting the actual message data.
         $data = json_decode($JSONString, true);
         if (!is_array($data)) {
             $this->SendDebugExtended('ReceiveData', 'Invalid data received', $JSONString);
@@ -114,6 +134,8 @@ class MQTTVariableSync extends IPSModule
             return;
         }
 
+        // The MQTT payload itself is another JSON blob containing the
+        // synchronisation metadata and actual value information.
         $decodedPayload = json_decode($payload, true);
         if (!is_array($decodedPayload)) {
             $this->SendDebugExtended('ReceiveData', 'Payload not JSON decodable', $payload);
@@ -148,6 +170,9 @@ class MQTTVariableSync extends IPSModule
             return;
         }
 
+        // When we process a remote update we temporarily mark the variable as
+        // busy. This prevents feedback loops because the originating change would
+        // otherwise be seen as a new local update.
         if ($this->IsProcessing($SenderID)) {
             $this->SendDebugExtended('MessageSink', sprintf('Skip variable %s because it is currently processed', $SenderID));
             $this->ClearProcessing($SenderID);
@@ -172,11 +197,16 @@ class MQTTVariableSync extends IPSModule
      */
     public function RequestAction($Ident, $Value): bool
     {
+        // Mirror variables are addressed by their identifier which we store in
+        // the IP-Symcon ident field. Convert the ident back to the original
+        // remote identifier before continuing.
         $identifier = $this->GetIdentifierFromIdent($Ident);
         if ($identifier === null) {
             throw new Exception(sprintf('Unknown ident "%s"', $Ident));
         }
 
+        // Retrieve the variable ID that belongs to the identifier. Without the
+        // mapping we cannot resolve which local variable triggered the action.
         $map = $this->GetIdentifierMap();
         if (!isset($map[$identifier])) {
             throw new Exception('Identifier not mapped');
@@ -187,6 +217,8 @@ class MQTTVariableSync extends IPSModule
 
         $this->MarkPendingAction($identifier);
 
+        // Serialize the payload so type information survives the MQTT transport
+        // and the remote side knows how to convert the value back.
         $message = [
             'type'        => self::MESSAGE_SET_VALUE,
             'identifier'  => $identifier,
@@ -209,6 +241,8 @@ class MQTTVariableSync extends IPSModule
      */
     private function PerformFullSync(): void
     {
+        // Gather every eligible variable beforehand so we can process them in a
+        // deterministic order and provide consistent debug output.
         $variables = $this->CollectSynchronizationVariables();
         foreach ($variables as $variableID) {
             $this->SyncVariable($variableID, true);
@@ -236,6 +270,9 @@ class MQTTVariableSync extends IPSModule
 
         $variable = IPS_GetVariable($variableID);
         $value = GetValue($variableID);
+        // The identifier contains the full object path and variable ID. It is
+        // stable across reboots and allows the partner system to reconstruct the
+        // hierarchy faithfully.
         $identifier = $this->BuildIdentifier($variableID);
 
         $map = $this->GetIdentifierMap();
@@ -320,6 +357,8 @@ class MQTTVariableSync extends IPSModule
             return;
         }
 
+        // Caching avoids recreating profiles on every update and prevents the
+        // log from being flooded with duplicate creation attempts.
         $profile = $payload['profile'];
         if (!isset($profile['Name'], $profile['Type'])) {
             $this->SendDebugExtended('HandleProfileSync', 'Incomplete profile data', $payload);
@@ -353,6 +392,8 @@ class MQTTVariableSync extends IPSModule
             return;
         }
 
+        // Reuse existing mirrors whenever possible to avoid tearing down and
+        // recreating the variable on every update.
         $map = $this->GetIdentifierMap();
         $variableID = null;
         if (isset($map[$identifier]) && IPS_VariableExists((int) $map[$identifier])) {
@@ -374,6 +415,8 @@ class MQTTVariableSync extends IPSModule
             return;
         }
 
+        // Convert the JSON payload back to the appropriate PHP type before the
+        // value is written to the local mirror.
         $value = $this->DeserializeValueFromTransmission($payload['value'] ?? null, (int) ($payload['valueType'] ?? 0));
 
         $this->EnterProcessing($variableID, self::PROCESSING_REASON_INCOMING);
@@ -400,6 +443,8 @@ class MQTTVariableSync extends IPSModule
             return;
         }
 
+        // Only attempt to forward the action when the identifier is known.
+        // Otherwise we risk calling RequestAction on unrelated variables.
         $map = $this->GetIdentifierMap();
         if (!isset($map[$identifier])) {
             $this->SendDebugExtended('HandleRemoteSetValue', 'Identifier not mapped', $identifier);
@@ -434,6 +479,8 @@ class MQTTVariableSync extends IPSModule
         ]);
 
         if ($this->ReadPropertyBoolean('EnableActionLog')) {
+            // Mirror the outcome to the Symcon log for audit trails if the user
+            // explicitly requested action logging.
             IPS_LogMessage('MQTTVariableSync', sprintf('Action result for %s: %s (%s)', $identifier, $result ? 'success' : 'failed', $message));
         }
     }
@@ -453,6 +500,8 @@ class MQTTVariableSync extends IPSModule
             return;
         }
 
+        // The identifier acts as correlation token. Remove it from the pending
+        // list so the next set request can reuse the slot.
         $pending = $this->GetPendingActions();
         if (isset($pending[$identifier])) {
             unset($pending[$identifier]);
@@ -487,6 +536,8 @@ class MQTTVariableSync extends IPSModule
         $definition = $payload['definition'] ?? [];
         $path = $payload['path'] ?? [];
 
+        // Build the remote category/device tree locally so the structure mirrors
+        // the source installation.
         $parentID = $this->EnsureMirrorStructure($path);
         if ($parentID === null) {
             return null;
@@ -503,6 +554,8 @@ class MQTTVariableSync extends IPSModule
 
         $profileName = $definition['profile'] ?? '';
         if ($profileName !== '') {
+            // Ensure the prefixed profile exists before assigning it to the
+            // mirror variable.
             $targetProfile = $this->EnsureProfileExistsByName($profileName, $type);
             if ($targetProfile !== null) {
                 IPS_SetVariableCustomProfile($variableID, $targetProfile);
@@ -546,6 +599,8 @@ class MQTTVariableSync extends IPSModule
 
             $childID = @IPS_GetObjectIDByIdent($ident, $parentID);
             if ($childID === false) {
+                // Create missing hierarchy segments to maintain the structural
+                // parity between both installations.
                 $childID = IPS_CreateCategory();
                 IPS_SetName($childID, $name);
                 IPS_SetIdent($childID, $ident);
@@ -577,6 +632,8 @@ class MQTTVariableSync extends IPSModule
 
         $prefixedName = $this->BuildPrefixedProfileName($profileName);
         if (!IPS_VariableProfileExists($prefixedName)) {
+            // Create a copy of the profile using the module prefix to avoid
+            // collisions with existing user profiles.
             IPS_CreateVariableProfile($prefixedName, $profileType);
             $min = $profile['MinValue'] ?? 0;
             $max = $profile['MaxValue'] ?? 0;
@@ -598,6 +655,8 @@ class MQTTVariableSync extends IPSModule
             }
         }
 
+        // Remember the exact definition so later calls can recreate it without
+        // waiting for another profile payload.
         $cache = $this->GetProfileCache();
         $cache[$profileName] = $profile;
         $this->SetProfileCache($cache);
@@ -629,6 +688,8 @@ class MQTTVariableSync extends IPSModule
         }
 
         $profile = $cache[$profileName];
+        // Guard against accidentally applying a profile with a mismatching type
+        // which could break widget rendering in IP-Symcon.
         if ((int) $profile['Type'] !== $type) {
             $this->SendDebugExtended('EnsureProfileExistsByName', 'Profile type mismatch', $profile);
             return null;
@@ -667,6 +728,8 @@ class MQTTVariableSync extends IPSModule
         $profile = IPS_GetVariableProfile($profileName);
         $profile['Name'] = $profileName;
 
+        // Cache the profile immediately so EnsureProfileExistsByName() can rely
+        // on the data even if the profile is deleted later on the source side.
         $cache = $this->GetProfileCache();
         $cache[$profileName] = $profile;
         $this->SetProfileCache($cache);
@@ -695,6 +758,8 @@ class MQTTVariableSync extends IPSModule
             'Payload'          => json_encode($payload)
         ];
 
+        // Provide transparency about the MQTT exchange while keeping message
+        // formatting consistent in a single helper.
         $this->SendDebugExtended('Publish', sprintf('Publishing to %s', $topic), $payload);
         $this->SendDataToParent(json_encode($data));
     }
@@ -776,6 +841,8 @@ class MQTTVariableSync extends IPSModule
             if ($object['ObjectType'] === OBJECTTYPE_LINK) {
                 break;
             }
+            // Each segment stores name and ident so the receiver can recreate
+            // the exact hierarchy beneath the configured mirror root.
             $path[] = [
                 'id'         => $objectID,
                 'name'       => $object['ObjectName'],
@@ -811,6 +878,8 @@ class MQTTVariableSync extends IPSModule
                 $targetID = (int) $entry;
             }
             if ($targetID <= 0 || !IPS_ObjectExists($targetID)) {
+                // Skip stale configuration entries gracefully to keep the
+                // synchronisation resilient against manual tree changes.
                 continue;
             }
             $this->SendDebugExtended('CollectSynchronizationVariables', 'Collecting from target', $targetID);
@@ -837,11 +906,15 @@ class MQTTVariableSync extends IPSModule
         }
 
         if ($object['ObjectType'] === OBJECTTYPE_VARIABLE) {
+            // Directly append variables; recursion stops here to avoid
+            // traversing into non-existing children.
             $variables[] = $objectID;
             return;
         }
 
         foreach ($object['ChildrenIDs'] as $childID) {
+            // Depth-first traversal ensures that nested categories are processed
+            // completely before moving on to the next branch.
             $this->CollectVariablesRecursive($childID, $variables);
         }
     }
@@ -856,6 +929,8 @@ class MQTTVariableSync extends IPSModule
     {
         $mode = $this->ReadPropertyString('Mode');
         $parentGUID = ($mode === 'Server') ? self::GUID_MQTT_SERVER : self::GUID_MQTT_CLIENT;
+        // ConnectParent() automatically creates the required instance if it does
+        // not yet exist, making the setup experience smoother for users.
         $this->ConnectParent($parentGUID);
     }
 
@@ -909,6 +984,8 @@ class MQTTVariableSync extends IPSModule
     private function SetParentPropertyIfExists(int $parentID, array $config, string $property, $value): bool
     {
         if (!array_key_exists($property, $config)) {
+            // Some MQTT parent instances may not expose all configuration keys;
+            // ignore them silently to remain compatible across versions.
             return false;
         }
 
@@ -929,6 +1006,9 @@ class MQTTVariableSync extends IPSModule
     private function MaintainReceiveDataFilter(): void
     {
         $topic = preg_quote($this->ReadPropertyString('ReceiveTopic'), '/');
+        // The filter is a JSON snippet evaluated by IP-Symcon before the module
+        // receives the data. It keeps unrelated MQTT traffic away from the
+        // instance to reduce processing overhead.
         $filter = sprintf('("Topic"\s*:\s*"%s")', $topic);
         $this->SetReceiveDataFilter($filter);
     }
@@ -948,6 +1028,8 @@ class MQTTVariableSync extends IPSModule
 
         $variables = $this->CollectSynchronizationVariables();
         foreach ($variables as $variableID) {
+            // Register both message and reference so the IP-Symcon UI displays
+            // the relationship and the module receives VM_UPDATE events.
             $this->RegisterReference($variableID);
             $this->RegisterMessage($variableID, VM_UPDATE);
         }
@@ -962,6 +1044,8 @@ class MQTTVariableSync extends IPSModule
     private function UnregisterMessages(): void
     {
         foreach ($this->GetReferenceList() as $referenceID) {
+            // Messages are scoped per object, therefore we remove each
+            // VM_UPDATE subscription explicitly.
             $this->UnregisterMessage($referenceID, VM_UPDATE);
         }
 
@@ -1037,6 +1121,9 @@ class MQTTVariableSync extends IPSModule
     private function MarkPendingAction(string $identifier): void
     {
         $pending = $this->GetPendingActions();
+        // Store a timestamp mainly for debugging purposes so administrators can
+        // see how long an action was outstanding before the acknowledgement
+        // arrived.
         $pending[$identifier] = time();
         $this->SetPendingActions($pending);
     }
@@ -1154,9 +1241,13 @@ class MQTTVariableSync extends IPSModule
     private function SerializeValueForTransmission($value)
     {
         if (is_string($value) || is_bool($value) || is_int($value) || is_float($value) || $value === null) {
+            // Primitive types can be transported as-is without loosing
+            // information.
             return $value;
         }
 
+        // Complex types (arrays, objects) are encoded into JSON so the receiver
+        // can rehydrate them if required by custom logic.
         return json_encode($value);
     }
 
@@ -1179,6 +1270,8 @@ class MQTTVariableSync extends IPSModule
                 return (float) $value;
             case VARIABLETYPE_STRING:
             default:
+                // Strings (and complex types encoded as strings) fall through to
+                // the default case.
                 return (string) $value;
         }
     }
@@ -1193,7 +1286,14 @@ class MQTTVariableSync extends IPSModule
     private function GetObjectName(int $objectID): string
     {
         $object = IPS_GetObject($objectID);
-        return $object['ObjectName'];
+        // Prefer the object name but fall back to the ident when no custom name
+        // was assigned to keep the mirror readable.
+        $name = $object['ObjectName'];
+        if ($name === '') {
+            $name = $object['ObjectIdent'] ?: ('ID' . $objectID);
+        }
+
+        return $name;
     }
 
     /**
@@ -1206,6 +1306,11 @@ class MQTTVariableSync extends IPSModule
     private function BuildPrefixedProfileName(string $profileName): string
     {
         $prefix = $this->ReadPropertyString('ProfilePrefix');
+        // Avoid double-prefixing when the profile already starts with the
+        // configured prefix.
+        if ($prefix !== '' && strpos($profileName, $prefix) === 0) {
+            return $profileName;
+        }
         return $prefix . $profileName;
     }
 
@@ -1223,6 +1328,8 @@ class MQTTVariableSync extends IPSModule
         }
 
         if ($data !== null) {
+            // Encode complex data as JSON to preserve structure within the debug
+            // log while keeping it readable.
             $message .= ' | ' . json_encode($data);
         }
         $this->SendDebug($context, $message, 0);
