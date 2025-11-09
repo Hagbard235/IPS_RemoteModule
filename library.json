@@ -2,7 +2,7 @@
     "id": "{EED6BB49-67E1-4FAD-8E58-0F5F1CFDE6A3}",
     "name": "MQTT Variable Synchronization",
     "author": "Andre Schmidt",
-    "url": "https://github.com/ips-agent/IPS_RemoteModule",
+    "url": "",
     "compatibility": {
         "version": "7.0"
     },
