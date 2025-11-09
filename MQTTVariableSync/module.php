@@ -48,7 +48,7 @@ class MQTTVariableSync extends IPSModule
         $this->RegisterPropertyInteger('MirrorRoot', 0);
         $this->RegisterPropertyString('SyncTargets', '[]');
 
-         // Use a short-lived timer that kicks off the initial synchronisation right
+        // Use a short-lived timer that kicks off the initial synchronisation right
         // after ApplyChanges() finished wiring up the module. The timer is disabled
         // immediately after the first run.
         $this->RegisterTimer('InitialSync', 0, 'MQTTSync_InitialSync($_IPS["TARGET"]);');
@@ -117,7 +117,7 @@ class MQTTVariableSync extends IPSModule
      *
      * @param string $JSONString Encoded MQTT data frame
      */
-    public function ReceiveData(string $JSONString): void
+    public function ReceiveData($JSONString)
     {
         // MQTTClient delivers the payload wrapped in a JSON envelope. Decode it
         // and validate the structure before inspecting the actual message data.
