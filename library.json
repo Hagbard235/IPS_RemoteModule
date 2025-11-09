@@ -4,7 +4,7 @@
     "author": "Andre Schmidt",
     "url": "https://github.com/ips-agent/IPS_RemoteModule",
     "compatibility": {
-        "version": "7.1"
+        "version": "7.0"
     },
     "version": "1.0",
     "build": 0,
