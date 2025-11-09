@@ -161,8 +161,14 @@ class MQTTVariableSync extends IPSModule
     /**
      * Handles IPS RequestAction calls for mirrored variables.
      *
-     * @param string $Ident
-     * @param mixed  $Value
+     * The method packages the request into an MQTT message that is pushed to the
+     * remote peer. The identifier is resolved from the ident that IP-Symcon
+     * provides and used as a correlation key for the response topic.
+     *
+     * @param string $Ident Symbolic ident assigned to the mirror variable.
+     * @param mixed  $Value Value to be sent to the remote instance.
+     *
+     * @return bool True if the request could be transmitted to the remote side.
      */
     public function RequestAction($Ident, $Value): bool
     {
@@ -196,6 +202,10 @@ class MQTTVariableSync extends IPSModule
 
     /**
      * Performs a full synchronisation for all configured targets.
+     *
+     * Every configured category/device tree is traversed recursively and all
+     * variables are emitted as MQTT updates. This method is used by the initial
+     * synchronisation timer and the manual trigger in the configuration form.
      */
     private function PerformFullSync(): void
     {
@@ -208,8 +218,14 @@ class MQTTVariableSync extends IPSModule
     /**
      * Synchronises a variable to the remote side.
      *
-     * @param int  $variableID   Identifier of the variable to sync.
-     * @param bool $initialSync  Flag indicating whether this sync is part of the initial bulk sync.
+     * The method mirrors profile information, ensures the identifier map is up
+     * to date and publishes the value as an MQTT payload. During initial
+     * synchronisation it sets the `initial` flag so the receiver can decide
+     * whether to overwrite local changes.
+     *
+     * @param int  $variableID  Identifier of the variable to sync.
+     * @param bool $initialSync Flag indicating whether this sync is part of the
+     *                          initial bulk sync.
      */
     private function SyncVariable(int $variableID, bool $initialSync = false): void
     {
@@ -261,7 +277,12 @@ class MQTTVariableSync extends IPSModule
     /**
      * Publishes a profile definition.
      *
-     * @param array $profile
+     * Each profile is only sent once per runtime to minimise MQTT traffic. The
+     * payload contains the full profile definition so the receiver can recreate
+     * the profile with a module specific prefix.
+     *
+     * @param array $profile Normalised profile array as returned by
+     *                       {@see GetProfileInformation()}.
      */
     private function PublishProfile(array $profile): void
     {
@@ -286,7 +307,11 @@ class MQTTVariableSync extends IPSModule
     /**
      * Processes an incoming profile synchronisation request.
      *
-     * @param array $payload
+     * The receiver validates the payload and creates the profile locally if it
+     * does not already exist with the configured prefix. Subsequent requests are
+     * ignored once the profile cache marks the profile as available.
+     *
+     * @param array $payload MQTT message payload for a profile update.
      */
     private function HandleProfileSync(array $payload): void
     {
@@ -307,7 +332,12 @@ class MQTTVariableSync extends IPSModule
     /**
      * Processes an incoming variable update.
      *
-     * @param array $payload
+     * The method ensures the local mirror exists (creating the structure if
+     * necessary) and then applies the transmitted value. Loop protection is
+     * handled by marking the variable as "processing" before the value is
+     * written to IP-Symcon.
+     *
+     * @param array $payload MQTT message payload describing the variable.
      */
     private function HandleVariableUpdate(array $payload): void
     {
@@ -354,7 +384,12 @@ class MQTTVariableSync extends IPSModule
     /**
      * Processes a request to set a variable coming from the remote side.
      *
-     * @param array $payload
+     * The payload is translated into a local `RequestAction` call on the real
+     * variable. Any thrown exception is caught and communicated back via an
+     * `actionResult` message so the sender can log the outcome.
+     *
+     * @param array $payload MQTT message payload containing the target
+     *                       identifier and value.
      */
     private function HandleRemoteSetValue(array $payload): void
     {
@@ -406,7 +441,10 @@ class MQTTVariableSync extends IPSModule
     /**
      * Handles an action result from the remote side.
      *
-     * @param array $payload
+     * The acknowledgement clears the local pending action marker. When action
+     * logging is enabled, the detailed message is forwarded to the Symcon log.
+     *
+     * @param array $payload MQTT message payload containing the result status.
      */
     private function HandleActionResult(array $payload): void
     {
@@ -433,10 +471,16 @@ class MQTTVariableSync extends IPSModule
     /**
      * Creates or fetches a mirrored variable for the provided identifier.
      *
-     * @param string $identifier
-     * @param array  $payload
+     * The structure defined in the payload is recreated under the configured
+     * mirror root and the variable is equipped with the appropriate ident and
+     * profile. Afterwards the variable is registered for VM_UPDATE messages so
+     * local changes can be forwarded.
      *
-     * @return int|null
+     * @param string $identifier Unique identifier produced by
+     *                           {@see BuildIdentifier()} on the source side.
+     * @param array  $payload    Payload of the variable update message.
+     *
+     * @return int|null The ID of the mirrored variable or null on error.
      */
     private function CreateMirrorVariable(string $identifier, array $payload): ?int
     {
@@ -476,9 +520,15 @@ class MQTTVariableSync extends IPSModule
     /**
      * Ensures the mirror structure exists for the provided path.
      *
-     * @param array $path
+     * The path represents the object hierarchy on the remote system. For each
+     * node a category is created locally (if not already present) underneath the
+     * configured mirror root. Links are ignored as they could otherwise create
+     * recursive structures.
      *
-     * @return int|null
+     * @param array $path Structured path information from the remote instance.
+     *
+     * @return int|null ID of the parent object that should contain the variable
+     *                  or null if the structure could not be ensured.
      */
     private function EnsureMirrorStructure(array $path): ?int
     {
@@ -510,7 +560,11 @@ class MQTTVariableSync extends IPSModule
     /**
      * Ensures a profile exists locally, creating it if necessary.
      *
-     * @param array $profile
+     * The method creates a prefixed copy of the original profile when it is not
+     * already available. All numeric ranges, digits, texts and associations are
+     * mirrored so the user experience stays the same on the mirrored instance.
+     *
+     * @param array $profile Raw profile definition supplied by the remote side.
      */
     private function EnsureProfileExists(array $profile): void
     {
@@ -552,10 +606,15 @@ class MQTTVariableSync extends IPSModule
     /**
      * Ensures a profile exists locally and returns the usable profile name.
      *
-     * @param string $profileName
-     * @param int    $type
+     * When the original profile is not available, the method attempts to use a
+     * cached definition to build the prefixed variant. If the cache does not
+     * contain the required metadata or the types differ, null is returned.
      *
-     * @return string|null
+     * @param string $profileName Original profile name from the source system.
+     * @param int    $type        Expected variable type to guard against
+     *                            incompatible profiles.
+     *
+     * @return string|null Name of the profile that should be applied locally.
      */
     private function EnsureProfileExistsByName(string $profileName, int $type): ?string
     {
@@ -587,9 +646,12 @@ class MQTTVariableSync extends IPSModule
     /**
      * Stores profile information for reuse when receiving variables.
      *
-     * @param array $variable
+     * The returned structure is cached so later calls to
+     * {@see EnsureProfileExistsByName()} can recreate the profile if necessary.
      *
-     * @return array|null
+     * @param array $variable Variable data from `IPS_GetVariable`.
+     *
+     * @return array|null Normalised profile definition or null when none exists.
      */
     private function GetProfileInformation(array $variable): ?array
     {
@@ -615,7 +677,11 @@ class MQTTVariableSync extends IPSModule
     /**
      * Publishes a message to the MQTT broker.
      *
-     * @param array $payload
+     * The message is wrapped in an IP-Symcon specific MQTT data frame and
+     * forwarded to the connected client/server instance. Messages are sent as
+     * QoS 0 and are not retained to avoid stale data after restarts.
+     *
+     * @param array $payload Associative array that will be JSON encoded.
      */
     private function Publish(array $payload): void
     {
@@ -636,9 +702,13 @@ class MQTTVariableSync extends IPSModule
     /**
      * Builds the identifier for a variable.
      *
-     * @param int $variableID
+     * Currently the IP-Symcon location string is used which ensures uniqueness
+     * within the instance and is stable across restarts as long as the object
+     * path is unchanged.
      *
-     * @return string
+     * @param int $variableID ID of the variable to build the identifier for.
+     *
+     * @return string Unique identifier shared with the remote instance.
      */
     private function BuildIdentifier(int $variableID): string
     {
@@ -648,9 +718,12 @@ class MQTTVariableSync extends IPSModule
     /**
      * Builds a sanitized ident string for mirrored objects.
      *
-     * @param string $identifier
+     * IP-Symcon idents must be alphanumeric and unique per parent. The MD5 hash
+     * guarantees uniqueness even for very long identifiers.
      *
-     * @return string
+     * @param string $identifier Full identifier that was exchanged with the peer.
+     *
+     * @return string Sanitised ident that can be applied to objects.
      */
     private function BuildIdentFromIdentifier(string $identifier): string
     {
@@ -660,9 +733,13 @@ class MQTTVariableSync extends IPSModule
     /**
      * Converts an ident back to the stored identifier.
      *
-     * @param string $ident
+     * The lookup iterates over the identifier map and resolves the ident stored
+     * on each object. This makes the function resilient to map inconsistencies
+     * after manual object changes.
      *
-     * @return string|null
+     * @param string $ident Ident assigned to the mirrored object.
+     *
+     * @return string|null Original identifier or null if not resolvable.
      */
     private function GetIdentifierFromIdent(string $ident): ?string
     {
@@ -682,9 +759,13 @@ class MQTTVariableSync extends IPSModule
     /**
      * Builds an object path for a variable to replicate on the remote side.
      *
-     * @param int $variableID
+     * The path consists of all parents (excluding links) up to the root. It is
+     * used to recreate the same category/device structure when a mirror
+     * variable is created on the peer.
      *
-     * @return array<int, array<string, mixed>>
+     * @param int $variableID ID of the variable whose path should be exported.
+     *
+     * @return array<int, array<string, mixed>> Ordered path description.
      */
     private function BuildObjectPath(int $variableID): array
     {
@@ -709,7 +790,11 @@ class MQTTVariableSync extends IPSModule
     /**
      * Collects all variables from the configured targets.
      *
-     * @return int[]
+     * Targets can be provided either as plain IDs or as objects with an
+     * `ObjectID` key (matching the configuration form schema). Duplicates are
+     * removed before returning the list.
+     *
+     * @return int[] List of variable IDs that should be synchronised.
      */
     private function CollectSynchronizationVariables(): array
     {
@@ -738,8 +823,11 @@ class MQTTVariableSync extends IPSModule
     /**
      * Recursively collects variables for synchronisation.
      *
-     * @param int   $objectID
-     * @param array $variables
+     * Links are skipped to avoid cycles. Every variable encountered is appended
+     * to the accumulator array.
+     *
+     * @param int   $objectID  Object to traverse.
+     * @param array $variables Reference to the accumulator.
      */
     private function CollectVariablesRecursive(int $objectID, array &$variables): void
     {
@@ -760,6 +848,9 @@ class MQTTVariableSync extends IPSModule
 
     /**
      * Registers parent connection based on configuration.
+     *
+     * Depending on the selected mode the module connects either to an
+     * MQTTClient or MQTTServer instance.
      */
     private function RegisterParentConnection(): void
     {
@@ -770,6 +861,9 @@ class MQTTVariableSync extends IPSModule
 
     /**
      * Applies configuration parameters to the connected parent instance if supported.
+     *
+     * This allows the module to automatically propagate broker settings such as
+     * host, port and credentials to the MQTT instance.
      */
     private function ConfigureParentInstance(): void
     {
@@ -805,12 +899,12 @@ class MQTTVariableSync extends IPSModule
     /**
      * Helper to set a property on the parent instance if the configuration supports it.
      *
-     * @param int   $parentID
-     * @param array $config
-     * @param string $property
-     * @param mixed $value
+     * @param int    $parentID ID of the parent instance.
+     * @param array  $config   Current configuration snapshot of the instance.
+     * @param string $property Property name in the parent configuration.
+     * @param mixed  $value    New value to apply.
      *
-     * @return bool
+     * @return bool True when the configuration value was changed.
      */
     private function SetParentPropertyIfExists(int $parentID, array $config, string $property, $value): bool
     {
@@ -828,6 +922,9 @@ class MQTTVariableSync extends IPSModule
 
     /**
      * Updates the receive data filter to only accept configured topics.
+     *
+     * Restricting the filter minimises processing overhead and prevents other
+     * MQTT traffic from triggering the module.
      */
     private function MaintainReceiveDataFilter(): void
     {
@@ -838,6 +935,9 @@ class MQTTVariableSync extends IPSModule
 
     /**
      * Updates references and message registrations for configured variables.
+     *
+     * This ensures VM_UPDATE messages are received for every configured
+     * variable and that the mirror root is tracked as a reference.
      */
     private function UpdateSynchronizationReferences(): void
     {
@@ -855,6 +955,9 @@ class MQTTVariableSync extends IPSModule
 
     /**
      * Removes all registered messages.
+     *
+     * Also clears the processing buffer to avoid stale state between
+     * reconfigurations.
      */
     private function UnregisterMessages(): void
     {
@@ -868,6 +971,8 @@ class MQTTVariableSync extends IPSModule
 
     /**
      * Removes registered references.
+     *
+     * Called before rebuilding the reference list during ApplyChanges.
      */
     private function UnregisterReferences(): void
     {
@@ -880,8 +985,8 @@ class MQTTVariableSync extends IPSModule
     /**
      * Stores that a variable is being processed to avoid loops.
      *
-     * @param int    $variableID
-     * @param string $reason
+     * @param int    $variableID Variable currently being processed.
+     * @param string $reason     Human readable reason (incoming/outgoing).
      */
     private function EnterProcessing(int $variableID, string $reason): void
     {
@@ -895,7 +1000,7 @@ class MQTTVariableSync extends IPSModule
     /**
      * Clears the processing flag for a variable.
      *
-     * @param int $variableID
+     * @param int $variableID Variable that finished processing.
      */
     private function ClearProcessing(int $variableID): void
     {
@@ -910,9 +1015,9 @@ class MQTTVariableSync extends IPSModule
     /**
      * Determines whether a variable is currently being processed.
      *
-     * @param int $variableID
+     * @param int $variableID Variable to check.
      *
-     * @return bool
+     * @return bool True when the variable is within the processing buffer.
      */
     private function IsProcessing(int $variableID): bool
     {
@@ -927,7 +1032,7 @@ class MQTTVariableSync extends IPSModule
     /**
      * Marks a pending action (remote RequestAction call) for logging.
      *
-     * @param string $identifier
+     * @param string $identifier Identifier of the variable action.
      */
     private function MarkPendingAction(string $identifier): void
     {
@@ -939,7 +1044,7 @@ class MQTTVariableSync extends IPSModule
     /**
      * Fetches the identifier map.
      *
-     * @return array<string, int>
+     * @return array<string, int> Mapping between identifiers and local IDs.
      */
     private function GetIdentifierMap(): array
     {
@@ -949,7 +1054,7 @@ class MQTTVariableSync extends IPSModule
     /**
      * Stores the identifier map.
      *
-     * @param array<string, int> $map
+     * @param array<string, int> $map Mapping between identifiers and local IDs.
      */
     private function SetIdentifierMap(array $map): void
     {
@@ -959,7 +1064,7 @@ class MQTTVariableSync extends IPSModule
     /**
      * Fetches cached profiles.
      *
-     * @return array<string, array>
+     * @return array<string, array> Profile definitions keyed by name.
      */
     private function GetProfileCache(): array
     {
@@ -969,7 +1074,7 @@ class MQTTVariableSync extends IPSModule
     /**
      * Stores profile cache.
      *
-     * @param array<string, array> $cache
+     * @param array<string, array> $cache Profile definitions keyed by name.
      */
     private function SetProfileCache(array $cache): void
     {
@@ -979,7 +1084,7 @@ class MQTTVariableSync extends IPSModule
     /**
      * Fetches pending actions.
      *
-     * @return array<string, int>
+     * @return array<string, int> Pending identifiers with timestamps.
      */
     private function GetPendingActions(): array
     {
@@ -989,7 +1094,7 @@ class MQTTVariableSync extends IPSModule
     /**
      * Stores pending actions.
      *
-     * @param array<string, int> $pending
+     * @param array<string, int> $pending Pending identifiers with timestamps.
      */
     private function SetPendingActions(array $pending): void
     {
@@ -999,7 +1104,7 @@ class MQTTVariableSync extends IPSModule
     /**
      * Retrieves processing buffer.
      *
-     * @return array<int, array{token:string, reason:string}>
+     * @return array<int, array{token:string, reason:string}> Processing metadata keyed by variable ID.
      */
     private function GetProcessing(): array
     {
@@ -1009,7 +1114,7 @@ class MQTTVariableSync extends IPSModule
     /**
      * Stores processing buffer.
      *
-     * @param array<int, array{token:string, reason:string}> $processing
+     * @param array<int, array{token:string, reason:string}> $processing Processing metadata keyed by variable ID.
      */
     private function SetProcessing(array $processing): void
     {
@@ -1019,7 +1124,7 @@ class MQTTVariableSync extends IPSModule
     /**
      * Retrieves known profiles.
      *
-     * @return array<int, string>
+     * @return array<int, string> List of already published profile names.
      */
     private function GetKnownProfiles(): array
     {
@@ -1029,7 +1134,7 @@ class MQTTVariableSync extends IPSModule
     /**
      * Stores known profiles.
      *
-     * @param array<int, string> $profiles
+     * @param array<int, string> $profiles List of already published profile names.
      */
     private function SetKnownProfiles(array $profiles): void
     {
@@ -1039,9 +1144,12 @@ class MQTTVariableSync extends IPSModule
     /**
      * Serialises a value for MQTT transfer.
      *
-     * @param mixed $value
+     * Complex data structures are JSON encoded, primitive types are passed
+     * through unchanged.
      *
-     * @return mixed
+     * @param mixed $value Value to be sent over MQTT.
+     *
+     * @return mixed Serialised representation.
      */
     private function SerializeValueForTransmission($value)
     {
@@ -1055,10 +1163,10 @@ class MQTTVariableSync extends IPSModule
     /**
      * Deserialises an incoming value according to the variable type.
      *
-     * @param mixed $value
-     * @param int   $type
+     * @param mixed $value Raw value from the MQTT payload.
+     * @param int   $type  Variable type constant from IP-Symcon.
      *
-     * @return mixed
+     * @return mixed Value converted to the expected PHP type.
      */
     private function DeserializeValueFromTransmission($value, int $type)
     {
@@ -1078,9 +1186,9 @@ class MQTTVariableSync extends IPSModule
     /**
      * Returns object name including custom name.
      *
-     * @param int $objectID
+     * @param int $objectID Object whose display name should be resolved.
      *
-     * @return string
+     * @return string Human readable object name.
      */
     private function GetObjectName(int $objectID): string
     {
@@ -1091,9 +1199,9 @@ class MQTTVariableSync extends IPSModule
     /**
      * Builds a prefixed profile name.
      *
-     * @param string $profileName
+     * @param string $profileName Original profile name.
      *
-     * @return string
+     * @return string Prefixed profile identifier for the local system.
      */
     private function BuildPrefixedProfileName(string $profileName): string
     {
@@ -1104,9 +1212,9 @@ class MQTTVariableSync extends IPSModule
     /**
      * Extended debug helper with optional structured data.
      *
-     * @param string     $context
-     * @param string     $message
-     * @param mixed|null $data
+     * @param string     $context Short tag to identify the caller.
+     * @param string     $message Log message.
+     * @param mixed|null $data    Optional payload that will be JSON encoded.
      */
     private function SendDebugExtended(string $context, string $message, $data = null): void
     {
