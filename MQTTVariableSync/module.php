@@ -929,6 +929,23 @@ class MQTTVariableSync extends IPSModule
     {
         $mode = $this->ReadPropertyString('Mode');
         $parentGUID = ($mode === 'Server') ? self::GUID_MQTT_SERVER : self::GUID_MQTT_CLIENT;
+
+        // Not every IP-Symcon installation necessarily has the MQTT modules
+        // installed. Avoid the rather cryptic warning "Module with GUID ... not
+        // found" by checking the availability up front and surface a descriptive
+        // status message instead.
+        if (function_exists('IPS_ModuleExists') && !IPS_ModuleExists($parentGUID)) {
+            $message = sprintf(
+                'Das benötigte MQTT-%s Modul (GUID %s) ist nicht installiert. Bitte das offizielle MQTT-Modul aus dem Module-Store hinzufügen oder den Modus wechseln.',
+                ($mode === 'Server') ? 'Server' : 'Client',
+                $parentGUID
+            );
+            $this->SendDebug('Parent', $message, 0);
+            IPS_LogMessage('MQTTVariableSync', $message);
+            $this->SetStatus(IS_INVALIDCONFIG);
+            return;
+        }
+
         // ConnectParent() automatically creates the required instance if it does
         // not yet exist, making the setup experience smoother for users.
         $this->ConnectParent($parentGUID);
