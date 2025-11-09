@@ -1,0 +1,116 @@
+{
+    "elements": [
+        {
+            "type": "ExpansionPanel",
+            "caption": "MQTT-Verbindung",
+            "items": [
+                {
+                    "type": "Select",
+                    "name": "Mode",
+                    "caption": "Betriebsart",
+                    "options": [
+                        {"caption": "Client (MQTTClient)", "value": "Client"},
+                        {"caption": "Server (MQTTServer)", "value": "Server"}
+                    ]
+                },
+                {
+                    "type": "ValidationTextBox",
+                    "name": "BrokerHost",
+                    "caption": "MQTT-Server",
+                    "visible": true
+                },
+                {
+                    "type": "NumberSpinner",
+                    "name": "BrokerPort",
+                    "caption": "Port",
+                    "minimum": 1,
+                    "maximum": 65535
+                },
+                {
+                    "type": "ValidationTextBox",
+                    "name": "Username",
+                    "caption": "Benutzername"
+                },
+                {
+                    "type": "PasswordTextBox",
+                    "name": "Password",
+                    "caption": "Passwort"
+                },
+                {
+                    "type": "ValidationTextBox",
+                    "name": "TopicPrefix",
+                    "caption": "Topic-Präfix"
+                },
+                {
+                    "type": "ValidationTextBox",
+                    "name": "SendTopic",
+                    "caption": "Sende-Topic"
+                },
+                {
+                    "type": "ValidationTextBox",
+                    "name": "ReceiveTopic",
+                    "caption": "Empfangs-Topic"
+                }
+            ]
+        },
+        {
+            "type": "ExpansionPanel",
+            "caption": "Synchronisation",
+            "items": [
+                {
+                    "type": "SelectObject",
+                    "name": "MirrorRoot",
+                    "caption": "Zielkategorie für Spiegelung"
+                },
+                {
+                    "type": "ValidationTextBox",
+                    "name": "ProfilePrefix",
+                    "caption": "Profil-Präfix"
+                },
+                {
+                    "type": "List",
+                    "name": "SyncTargets",
+                    "caption": "Kategorien / Geräte",
+                    "rowCount": 5,
+                    "add": true,
+                    "delete": true,
+                    "columns": [
+                        {
+                            "caption": "Objekt",
+                            "name": "ObjectID",
+                            "width": "auto",
+                            "add": 0,
+                            "edit": {
+                                "type": "SelectObject",
+                                "caption": "Objekt auswählen"
+                            }
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "type": "ExpansionPanel",
+            "caption": "Logging",
+            "items": [
+                {
+                    "type": "CheckBox",
+                    "name": "EnableDebug",
+                    "caption": "Debug-Logging aktivieren"
+                },
+                {
+                    "type": "CheckBox",
+                    "name": "EnableActionLog",
+                    "caption": "RequestAction-Ergebnisse protokollieren"
+                }
+            ]
+        }
+    ],
+    "actions": [
+        {
+            "type": "Button",
+            "caption": "Jetzt synchronisieren",
+            "onClick": "MQTTSync_TriggerFullSync($id);"
+        }
+    ]
+}
