@@ -12,7 +12,7 @@
     ],
     "childRequirements": [],
     "implemented": [
-        "{F6873AC2-8557-4E4B-AB5A-6961C897A3D2}"
+        "{7F7632D9-FA40-4F38-8DEA-C83CD4325A32}"
     ],
     "prefix": "MQTTSync"
 }
