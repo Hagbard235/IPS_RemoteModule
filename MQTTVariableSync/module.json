@@ -7,8 +7,8 @@
         "MQTT Variablen Synchronisation"
     ],
     "parentRequirements": [
-        "{C6E74E45-0BC7-4757-84F4-6BAF3BEA1D43}",
-        "{C6E74E41-0BC7-4757-84F4-6BAF3BEA1D43}"
+        
+        "{043EA491-0325-4ADD-8FC2-A30C8EEB4D3F}"
     ],
     "childRequirements": [],
     "implemented": [
