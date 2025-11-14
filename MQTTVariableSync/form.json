@@ -1,116 +1,110 @@
 {
-    "elements": [
+    "name": "IPSSyncMQTT",
+    "parentRequirements": [
+        "{EE06497B-6F31-4329-A77E-0640F5F6F333}"
+    ],
+    "prefix": "IS",
+    "suffix": "SyncMQTT",
+    "implemented": [
+        "{018EF6B5-AB94-40C6-AA53-469411E7EE0A}"
+    ],
+    "supportSite": "",
+    "variables": [
         {
-            "type": "ExpansionPanel",
-            "caption": "MQTT-Verbindung",
-            "items": [
-                {
-                    "type": "Select",
-                    "name": "Mode",
-                    "caption": "Betriebsart",
-                    "options": [
-                        {"caption": "Client (MQTTClient)", "value": "Client"},
-                        {"caption": "Server (MQTTServer)", "value": "Server"}
-                    ]
-                },
-                {
-                    "type": "ValidationTextBox",
-                    "name": "BrokerHost",
-                    "caption": "MQTT-Server",
-                    "visible": true
-                },
-                {
-                    "type": "NumberSpinner",
-                    "name": "BrokerPort",
-                    "caption": "Port",
-                    "minimum": 1,
-                    "maximum": 65535
-                },
-                {
-                    "type": "ValidationTextBox",
-                    "name": "Username",
-                    "caption": "Benutzername"
-                },
-                {
-                    "type": "PasswordTextBox",
-                    "name": "Password",
-                    "caption": "Passwort"
-                },
-                {
-                    "type": "ValidationTextBox",
-                    "name": "TopicPrefix",
-                    "caption": "Topic-Präfix"
-                },
-                {
-                    "type": "ValidationTextBox",
-                    "name": "SendTopic",
-                    "caption": "Sende-Topic"
-                },
-                {
-                    "type": "ValidationTextBox",
-                    "name": "ReceiveTopic",
-                    "caption": "Empfangs-Topic"
-                }
-            ]
-        },
-        {
-            "type": "ExpansionPanel",
-            "caption": "Synchronisation",
-            "items": [
-                {
-                    "type": "SelectObject",
-                    "name": "MirrorRoot",
-                    "caption": "Zielkategorie für Spiegelung"
-                },
-                {
-                    "type": "ValidationTextBox",
-                    "name": "ProfilePrefix",
-                    "caption": "Profil-Präfix"
-                },
-                {
-                    "type": "List",
-                    "name": "SyncTargets",
-                    "caption": "Kategorien / Geräte",
-                    "rowCount": 5,
-                    "add": true,
-                    "delete": true,
-                    "columns": [
-                        {
-                            "caption": "Objekt",
-                            "name": "ObjectID",
-                            "width": "auto",
-                            "add": 0,
-                            "edit": {
-                                "type": "SelectObject",
-                                "caption": "Objekt auswählen"
-                            }
-                        }
-                    ]
-                }
-            ]
-        },
-        {
-            "type": "ExpansionPanel",
-            "caption": "Logging",
-            "items": [
-                {
-                    "type": "CheckBox",
-                    "name": "EnableDebug",
-                    "caption": "Debug-Logging aktivieren"
-                },
-                {
-                    "type": "CheckBox",
-                    "name": "EnableActionLog",
-                    "caption": "RequestAction-Ergebnisse protokollieren"
-                }
-            ]
+            "name": "LastSyncTime",
+            "type": 1,
+            "position": 1,
+            "profile": "~UnixTimestamp",
+            "caption": "Letzte erfolgreiche Synchronisierung"
         }
     ],
-    "actions": [
-        {
-            "type": "Button",
-            "caption": "Jetzt synchronisieren",
-            "onClick": "MQTTSync_TriggerFullSync($id);"
-        }
-    ]
+    "form": {
+        "attributes": {
+            "Host": {
+                "caption": "Broker IP/Host"
+            },
+            "Topic": {
+                "caption": "Basis-Topic Präfix (z.B. ips/sync)"
+            }
+        },
+        "elements": [
+            {
+                "type": "SelectCategory",
+                "name": "SyncRoots",
+                "caption": "Synchronisations-Quellen (Kategorien/Geräte)",
+                "multiple": true
+            },
+            {
+                "type": "CheckBox",
+                "name": "LogDebug",
+                "caption": "Debug-Logging aktivieren"
+            },
+            {
+                "type": "CheckBox",
+                "name": "LogFeedback",
+                "caption": "RequestAction-Rückmelde-Logging aktivieren"
+            },
+            {
+                "type": "Label",
+                "caption": "Alle Variablen unter den gewählten Objekten werden automatisch synchronisiert."
+            },
+            {
+                "type": "Button",
+                "caption": "Synchronisation erneut starten",
+                "onClick": "IS_ApplyChanges($id);"
+            }
+        ],
+        "actions": [
+            {
+                "type": "Label",
+                "caption": "Aktive Synchronisation:"
+            },
+            {
+                "type": "List",
+                "name": "SyncedVariablesList",
+                "caption": "Synchronisierte Variablen",
+                "rowCount": 10,
+                "add": false,
+                "delete": false,
+                "columns": [
+                    {
+                        "caption": "Quell-ID (Lokal)",
+                        "name": "SourceID",
+                        "width": "80px",
+                        "add": 0,
+                        "edit": {
+                            "type": "NumberSpinner"
+                        }
+                    },
+                    {
+                        "caption": "Name",
+                        "name": "Name",
+                        "width": "200px",
+                        "add": "",
+                        "edit": {
+                            "type": "ValidationTextBox"
+                        }
+                    },
+                    {
+                        "caption": "Ziel-ID (Lokal erstellt)",
+                        "name": "TargetID",
+                        "width": "80px",
+                        "add": 0,
+                        "edit": {
+                            "type": "NumberSpinner"
+                        }
+                    },
+                    {
+                        "caption": "Profilname",
+                        "name": "ProfileName",
+                        "width": "150px",
+                        "add": "",
+                        "edit": {
+                            "type": "ValidationTextBox"
+                        }
+                    }
+                ]
+            }
+        ]
+    }
 }
