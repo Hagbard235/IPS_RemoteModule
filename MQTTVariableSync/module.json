@@ -1,17 +1,36 @@
 {
-    "id": "{C0A5F5B2-57AB-4B11-8C45-6F121BCF92C0}",
-    "name": "MQTTVariableSync",
-    "type": 3,
-    "vendor": "OpenAI",
-    "aliases": [
-        "MQTT Variablen Synchronisation"
+    "id": "{721495A9-D53A-4217-AE8A-29509618B991}",
+    "name": "IPSSyncMQTT",
+    "author": "Gemini",
+    "url": "https://www.symcon.de/",
+    "license": "MIT",
+    "version": "1.0",
+    "build": 0,
+    "date": 0,
+    "compatibility": {
+        "cpu": [
+            "all"
+        ],
+        "os": [
+            "all"
+        ],
+        "ip-symcon": ">= 6.0"
+    },
+    "hardware": [
+        "all"
     ],
-    "parentRequirements": [
-        "{7F7632D9-FA40-4F38-8DEA-C83CD4325A32}"
+    "products": [
+        "all"
     ],
-    "childRequirements": [],
-    "implemented": [
-        "{043EA491-0325-4ADD-8FC2-A30C8EEB4D3F}"
-    ],
-    "prefix": "MQTTSync"
+    "support": {
+        "forum": "https://www.symcon.de/"
+    },
+    "moduleEntries": [
+        {
+            "id": "{C278065F-1C4C-4328-868C-28D69A5D6B65}",
+            "name": "IPSSyncMQTT",
+            "module": "IPSSyncMQTT.php",
+            "type": 3
+        }
+    ]
 }
