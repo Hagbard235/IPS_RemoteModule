@@ -43,6 +43,7 @@ class MQTTVariableSync extends IPSModule
     public function Create(): void
     {
         parent::Create();
+        // Logische Rolle, aber nicht mehr für die Auswahl des MQTT-Moduls genutzt
         $this->RegisterPropertyString('Mode', 'Client');
         $this->RegisterPropertyString('BrokerHost', '');
         $this->RegisterPropertyInteger('BrokerPort', 1883);
@@ -931,13 +932,13 @@ class MQTTVariableSync extends IPSModule
     /**
      * Registers parent connection based on configuration.
      *
-     * Depending on the selected mode the module connects either to an
-     * MQTTClient or MQTTServer instance.
+     * In this variant we always connect to an MQTTClient instance, regardless
+     * of the logical mode of the module (host/client).
      */
     private function RegisterParentConnection(): void
     {
-        $mode = $this->ReadPropertyString('Mode');
-        $parentGUID = ($mode === 'Server') ? self::GUID_MQTT_SERVER : self::GUID_MQTT_CLIENT;
+        // Always use the MQTT-Client as parent
+        $parentGUID = self::GUID_MQTT_CLIENT;
 
         // Not every IP-Symcon installation necessarily has the MQTT modules
         // installed. Avoid the rather cryptic warning "Module with GUID ... not
@@ -945,8 +946,7 @@ class MQTTVariableSync extends IPSModule
         // status message instead.
         if (function_exists('IPS_ModuleExists') && !IPS_ModuleExists($parentGUID)) {
             $message = sprintf(
-                'Das benötigte MQTT-%s Modul (GUID %s) ist nicht installiert. Bitte das offizielle MQTT-Modul aus dem Module-Store hinzufügen oder den Modus wechseln.',
-                ($mode === 'Server') ? 'Server' : 'Client',
+                'Das benötigte MQTT-Client Modul (GUID %s) ist nicht installiert. Bitte das offizielle MQTT-Modul aus dem Module-Store hinzufügen.',
                 $parentGUID
             );
             $this->SendDebug('Parent', $message, 0);
@@ -964,7 +964,7 @@ class MQTTVariableSync extends IPSModule
      * Applies configuration parameters to the connected parent instance if supported.
      *
      * This allows the module to automatically propagate broker settings such as
-     * host, port and credentials to the MQTT instance.
+     * host, port and credentials to the MQTTClient instance.
      */
     private function ConfigureParentInstance(): void
     {
@@ -981,16 +981,34 @@ class MQTTVariableSync extends IPSModule
 
         $changed = false;
 
-        $mode = $this->ReadPropertyString('Mode');
-        if ($mode === 'Client') {
-            $changed = $this->SetParentPropertyIfExists($parentID, $config, 'Host', $this->ReadPropertyString('BrokerHost')) || $changed;
-            $changed = $this->SetParentPropertyIfExists($parentID, $config, 'Port', $this->ReadPropertyInteger('BrokerPort')) || $changed;
-        } else {
-            $changed = $this->SetParentPropertyIfExists($parentID, $config, 'BindPort', $this->ReadPropertyInteger('BrokerPort')) || $changed;
-        }
+        // Always configure as MQTT-Client: Host/Port/Username/Password
+        $changed = $this->SetParentPropertyIfExists(
+            $parentID,
+            $config,
+            'Host',
+            $this->ReadPropertyString('BrokerHost')
+        ) || $changed;
 
-        $changed = $this->SetParentPropertyIfExists($parentID, $config, 'Username', $this->ReadPropertyString('Username')) || $changed;
-        $changed = $this->SetParentPropertyIfExists($parentID, $config, 'Password', $this->ReadPropertyString('Password')) || $changed;
+        $changed = $this->SetParentPropertyIfExists(
+            $parentID,
+            $config,
+            'Port',
+            $this->ReadPropertyInteger('BrokerPort')
+        ) || $changed;
+
+        $changed = $this->SetParentPropertyIfExists(
+            $parentID,
+            $config,
+            'Username',
+            $this->ReadPropertyString('Username')
+        ) || $changed;
+
+        $changed = $this->SetParentPropertyIfExists(
+            $parentID,
+            $config,
+            'Password',
+            $this->ReadPropertyString('Password')
+        ) || $changed;
 
         if ($changed) {
             IPS_ApplyChanges($parentID);
@@ -1361,4 +1379,3 @@ class MQTTVariableSync extends IPSModule
         $this->SendDebug($context, $message, 0);
     }
 }
-
