@@ -19,9 +19,9 @@ if (!defined('IS_INVALIDCONFIG')) {
  */
 class MQTTVariableSync extends IPSModule
 {
-    private const GUID_MQTT_SERVER = '{043EA491-0325-4ADD-8FC2-A30C8EEB4D3F}';
-    private const GUID_MQTT_CLIENT = '{043EA491-0325-4ADD-8FC2-A30C8EEB4D3F}';
-    private const DATA_GUID = '{F6873AC2-8557-4E4B-AB5A-6961C897A3D2}';
+    private const GUID_MQTT_SERVER = '{C6D2AEB3-6E1F-4B2E-8E69-3A1A00246850}';
+    private const GUID_MQTT_CLIENT = '{F7A0DD2E-7684-95C0-64C2-D2A9DC47577B}';
+    private const DATA_GUID = '{043EA491-0325-4ADD-8FC2-A30C8EEB4D3F}';
 
     private const BUFFER_IDENTIFIER_MAP = 'IdentifierMap';
     private const BUFFER_PROFILE_CACHE = 'ProfileCache';
