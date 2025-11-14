@@ -1,0 +1,15 @@
+{
+    "id": "{C0A5F5B2-57AB-4B11-8C45-6F121BCF92C0}",
+    "name": "MQTTVariableSync",
+    "type": 3,
+    "vendor": "OpenAI",
+    "aliases": [
+        "MQTT Variablen Synchronisation"
+    ],
+    "parentRequirements": [
+        "{043EA491-0325-4ADD-8FC2-A30C8EEB4D3F}"
+    ],
+    "childRequirements": [],
+    "implemented": [],
+    "prefix": "MQTTSync"
+}
