@@ -1,6 +1,6 @@
 {
     "id": "{721495A9-D53A-4217-AE8A-29509618B991}",
-    "name": "IPSSyncMQTT",
+    "name": "MQTTVariableSync",
     "author": "Gemini",
     "url": "https://www.symcon.de/",
     "license": "MIT",
@@ -28,8 +28,8 @@
     "moduleEntries": [
         {
             "id": "{C278065F-1C4C-4328-868C-28D69A5D6B65}",
-            "name": "IPSSyncMQTT",
-            "module": "IPSSyncMQTT.php",
+            "name": "MQTTVariableSync",
+            "module": "module.php",
             "type": 3
         }
     ]
