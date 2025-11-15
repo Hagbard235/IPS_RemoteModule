@@ -1,36 +1,11 @@
 {
-    "id": "{721495A9-D53A-4217-AE8A-29509618B991}",
-    "name": "MQTTVariableSync",
-    "author": "Gemini",
-    "url": "https://www.symcon.de/",
-    "license": "MIT",
-    "version": "1.0",
-    "build": 0,
-    "date": 0,
-    "compatibility": {
-        "cpu": [
-            "all"
-        ],
-        "os": [
-            "all"
-        ],
-        "ip-symcon": ">= 6.0"
-    },
-    "hardware": [
-        "all"
-    ],
-    "products": [
-        "all"
-    ],
-    "support": {
-        "forum": "https://www.symcon.de/"
-    },
-    "moduleEntries": [
-        {
-            "id": "{C278065F-1C4C-4328-868C-28D69A5D6B65}",
-            "name": "MQTTVariableSync",
-            "module": "module.php",
-            "type": 3
-        }
-    ]
+  "id": "{C278065F-1C4C-4328-868C-28D69A5D6B65}",
+  "name": "MQTTVariableSync",
+  "type": 0,
+  "vendor": "Gemini",
+  "aliases": ["MQTT Variable Sync"],
+  "parentRequirements": [],
+  "childRequirements": [],
+  "implemented": [],
+  "prefix": "MQTTVARSYNC"
 }
