@@ -15,7 +15,8 @@ declare(strict_types=1);
  *
  * @author Gemini
  */
-class IPSSyncMQTT extends IPSModule
+class MQTTVariableSync extends IPSModule
+
 {
     // Temporäre Flagge zur Vermeidung von Rückkopplungsschleifen beim Empfangen
     private $isReceiving = false;
