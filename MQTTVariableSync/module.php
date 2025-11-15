@@ -200,7 +200,7 @@ class MQTTVariableSync extends IPSModule
         $this->RegisterVariableInteger('LastSyncTime', 'Letzte Sync Zeit', '~UnixTimestamp', 1);
 
         // Erforderlich, da wir den MQTT Client als Parent haben
-        $this->ConnectParent('{EE06497B-6F31-4329-A77E-0640F5F6F333}');
+        $this->ConnectParent('{F7A0DD2E-7684-95C0-64C2-D2A9DC47577B}');
     }
 
     public function Destroy()
